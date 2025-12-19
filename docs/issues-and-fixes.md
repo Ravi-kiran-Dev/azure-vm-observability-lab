@@ -59,3 +59,54 @@ along with root cause analysis, resolution steps, and key learnings.
 - Azure VM SKU availability can vary by region and time
 - Terraform configurations should allow flexibility in VM sizing
 - Production deployments should validate SKU availability early
+
+
+## Issue 3: Diagnostic setting failed due to unsupported log category
+
+### Symptoms
+- Terraform apply failed with HTTP 400 BadRequest
+- Error message indicated that the 'Security' diagnostic category is not supported for the VM resource
+
+### Impact
+- Diagnostic settings could not be applied to the virtual machine
+- Log ingestion into Log Analytics was partially blocked
+
+### Root Cause
+- Azure diagnostic categories are resource-specific
+- The 'Security' category is not supported for Microsoft.Compute virtual machines
+- VM security signals are provided via Defender for Cloud and Sentinel, not VM diagnostics
+
+### Resolution
+- Removed the unsupported 'Security' log category from the diagnostic settings
+- Retained supported categories such as 'Administrative' and 'ServiceHealth'
+- Re-applied Terraform successfully
+
+### Learning and Prevention
+- Always validate supported diagnostic categories per Azure resource type
+- Security monitoring for VMs should leverage Defender for Cloud and Sentinel
+- Diagnostic configurations must be tailored per resource, not generalized
+
+
+## Issue 4: VM diagnostic settings failed due to unsupported log categories
+
+### Symptoms
+- Terraform apply failed with HTTP 400 BadRequest
+- Azure rejected diagnostic categories such as 'Administrative' for the VM resource
+
+### Impact
+- Diagnostic settings could not be applied to the virtual machine
+- Required clarification on where VM-related logs originate
+
+### Root Cause
+- Azure Virtual Machines do not support most platform log categories at the resource level
+- Control-plane logs (Administrative, Policy, ServiceHealth) are emitted at the subscription or resource group level via AzureActivity
+- VM diagnostic settings primarily support metrics, not logs
+
+### Resolution
+- Updated diagnostic settings to enable only supported VM metrics (`AllMetrics`)
+- Relied on AzureActivity table in Log Analytics for control-plane visibility
+
+### Learning and Prevention
+- Diagnostic category support varies significantly by Azure resource type
+- Logs and metrics have different scopes and ingestion paths in Azure Monitor
+- Monitoring designs must account for resource-level vs subscription-level telemetry
