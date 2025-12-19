@@ -35,3 +35,27 @@ along with root cause analysis, resolution steps, and key learnings.
 - Terraform working directories and provider binaries must never be committed.
 - .gitignore should be configured before the first commit in infrastructure repositories.
 - When large files are committed, rewriting Git history may be required to fully resolve the issue.
+
+## Issue 2: VM deployment failed due to SKU capacity restriction
+
+### Symptoms
+- Terraform apply failed with error:
+  `SkuNotAvailable: Standard_B2s is currently not available in eastus`
+- Azure returned HTTP 409 Conflict during VM creation
+
+### Impact
+- Virtual Machine could not be provisioned
+- Monitoring pipeline setup was blocked until compute was available
+
+### Root Cause
+- Azure enforces regional capacity limits on VM SKUs
+- The requested VM size was temporarily unavailable in the selected region
+
+### Resolution
+- Updated VM size to an alternative SKU (`Standard_DS1_v2`) with available capacity
+- Re-applied Terraform successfully without changing region
+
+### Learning and Prevention
+- Azure VM SKU availability can vary by region and time
+- Terraform configurations should allow flexibility in VM sizing
+- Production deployments should validate SKU availability early
