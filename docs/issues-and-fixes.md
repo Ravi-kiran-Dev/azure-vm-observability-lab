@@ -133,3 +133,11 @@ along with root cause analysis, resolution steps, and key learnings.
 - Azure Monitor uses multiple telemetry pipelines
 - Control-plane logs must be enabled at subscription or resource group level
 - VM observability requires combining metrics, platform logs, and guest logs
+
+
+### Final Observation
+- AzureActivity logs began appearing after an ingestion delay of several minutes.
+- No configuration changes were required after validation.
+
+**Conclusion:**  
+Initial absence of AzureActivity logs was due to expected Azure Monitor ingestion latency, not misconfiguration.
