@@ -110,3 +110,26 @@ along with root cause analysis, resolution steps, and key learnings.
 - Diagnostic category support varies significantly by Azure resource type
 - Logs and metrics have different scopes and ingestion paths in Azure Monitor
 - Monitoring designs must account for resource-level vs subscription-level telemetry
+
+
+## Issue 5: VM and Log Analytics appeared disconnected
+
+### Symptoms
+- VM and Log Analytics Workspace were created successfully
+- No logs appeared in Log Analytics related to VM activity
+- Monitoring appeared incomplete despite diagnostic settings
+
+### Root Cause
+- VM diagnostic settings only send metrics, not control-plane logs
+- AzureActivity logs originate at the subscription scope
+- Subscription-level diagnostic settings were missing
+
+### Resolution
+- Added subscription-level diagnostic settings
+- Routed AzureActivity logs to the Log Analytics workspace
+- Validated ingestion using KQL queries
+
+### Learning and Prevention
+- Azure Monitor uses multiple telemetry pipelines
+- Control-plane logs must be enabled at subscription or resource group level
+- VM observability requires combining metrics, platform logs, and guest logs
