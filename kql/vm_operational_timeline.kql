@@ -1,0 +1,4 @@
+AzureActivity
+| where Resource contains "vm-monitoring-lab"
+| project TimeGenerated, OperationNameValue, ActivityStatusValue
+| sort by TimeGenerated desc

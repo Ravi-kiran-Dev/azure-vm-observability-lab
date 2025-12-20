@@ -1,0 +1,7 @@
+AzureMetrics
+| where Resource contains "vm-monitoring-lab"
+| where MetricName in ("Percentage CPU", "Available Memory Bytes")
+| summarize
+    AvgValue = avg(Average)
+    by MetricName, bin(TimeGenerated, 5m)
+| sort by TimeGenerated desc

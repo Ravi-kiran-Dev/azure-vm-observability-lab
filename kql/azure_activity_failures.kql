@@ -1,0 +1,12 @@
+AzureActivity
+| where TimeGenerated > ago(24h)
+| where ActivityStatusValue == "Failed"
+| project
+    TimeGenerated,
+    ResourceGroup,
+    Resource,
+    OperationNameValue,
+    ActivityStatusValue,
+    Caller,
+    CorrelationId
+| sort by TimeGenerated desc
