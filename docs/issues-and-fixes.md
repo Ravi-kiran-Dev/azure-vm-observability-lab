@@ -1,176 +1,189 @@
 # Issues and Fixes
 
-This document captures real issues encountered during the implementation of the
-**Azure VM Observability Lab**, along with root cause analysis, resolutions, and
-key learnings. These issues reflect real-world Azure and Terraform behavior.
+This document records real-world issues encountered during the implementation of the
+Azure VM Observability Lab, along with root cause analysis, resolutions, and learnings.
+The intent is to demonstrate practical troubleshooting and operational thinking.
 
 ---
 
 ## Issue 1: GitHub push failed due to large Terraform provider binaries
 
 ### Symptoms
-- `git push` failed with GitHub error indicating a file exceeded 100 MB.
-- Error referenced Terraform provider binary inside `.terraform/`.
+- `git push` failed with GitHub error indicating file size exceeded 100 MB
+- Error referenced Terraform provider binary inside `.terraform/`
 
 ### Impact
-- Unable to push Terraform code to the remote repository.
-- Repository was not CI/CD ready.
+- Repository could not be pushed to GitHub
+- Project collaboration and CI/CD readiness blocked
 
 ### Root Cause
-- Terraform provider binaries inside `.terraform/` were accidentally committed.
-- `.gitignore` was added after the initial commit, so files remained in Git history.
+- Terraform provider binaries inside `.terraform/` were accidentally committed
+- `.gitignore` was added after files were already tracked
+- Git continued tracking the files in commit history
 
 ### Resolution
-- Added `.terraform/`, Terraform state, and plan files to `.gitignore`.
-- Removed cached binaries using:
-```git rm -r --cached terraform/.terraform
-- Rewrote Git history using `git filter-branch`.
-- Force-pushed cleaned history to GitHub.
+- Added `.terraform/` and Terraform state files to `.gitignore`
+- Removed cached binaries using `git rm --cached`
+- Rewrote Git history using `git filter-branch`
+- Force-pushed cleaned repository
 
 ### Learning and Prevention
-- Terraform working directories must never be committed.
-- `.gitignore` should be configured before the first commit.
-- Understanding Git history is critical for infrastructure repositories.
+- Terraform working directories must never be committed
+- `.gitignore` must be configured before first commit
+- Understanding Git history is critical for IaC repositories
 
 ---
 
 ## Issue 2: VM deployment failed due to SKU capacity restriction
 
 ### Symptoms
-- Terraform apply failed with `SkuNotAvailable` (HTTP 409).
-- VM size `Standard_B2s` was unavailable in the selected region.
+- Terraform apply failed with `SkuNotAvailable` (HTTP 409)
+- Error indicated `Standard_B2s` unavailable in `eastus`
 
 ### Impact
-- Virtual Machine could not be provisioned.
-- Monitoring setup was blocked.
+- VM provisioning blocked
+- Monitoring pipeline could not proceed
 
 ### Root Cause
-- Azure enforces regional capacity limits on VM SKUs.
-- SKU availability can change dynamically.
+- Azure enforces regional capacity constraints on VM SKUs
+- Requested SKU temporarily unavailable
 
 ### Resolution
-- Switched VM size to `Standard_DS1_v2`.
-- Re-applied Terraform successfully without changing region.
+- Switched VM size to `Standard_DS1_v2`
+- Re-applied Terraform successfully without changing region
 
 ### Learning and Prevention
-- VM SKU availability varies by region and time.
-- Terraform configurations should allow flexibility in VM sizing.
+- VM SKU availability varies by region and time
+- Terraform configs should allow flexibility in VM sizing
+- SKU validation is important for production deployments
 
 ---
 
-## Issue 3: Diagnostic setting failed due to unsupported Security category
+## Issue 3: VM diagnostic setting failed due to unsupported Security category
 
 ### Symptoms
-- Terraform apply failed with HTTP 400 BadRequest.
-- Error indicated `Security` category was not supported.
+- Terraform apply failed with HTTP 400 BadRequest
+- Error: `Category 'Security' is not supported`
 
 ### Impact
-- Diagnostic settings could not be applied to the VM.
+- Diagnostic settings could not be applied to VM
+- Log ingestion incomplete
 
 ### Root Cause
-- Azure diagnostic categories are resource-specific.
-- `Security` logs are not supported for VM diagnostic settings.
+- Azure VM diagnostic settings do not support `Security` logs
+- Security telemetry is provided via Defender for Cloud and Sentinel
 
 ### Resolution
-- Removed `Security` category from VM diagnostic configuration.
-- Retained supported categories.
+- Removed unsupported `Security` category from VM diagnostics
+- Retained supported telemetry paths
 
 ### Learning and Prevention
-- Diagnostic categories must be validated per resource type.
-- VM security telemetry is provided via Defender for Cloud and Sentinel.
+- Diagnostic categories are resource-specific
+- Security logs must be sourced from appropriate Azure services
 
 ---
 
-## Issue 4: VM diagnostic settings failed due to unsupported Administrative category
+## Issue 4: VM diagnostic setting failed due to unsupported Administrative category
 
 ### Symptoms
-- Terraform apply failed with HTTP 400 BadRequest.
-- Azure rejected `Administrative` diagnostic category for VM.
+- Terraform apply failed with HTTP 400 BadRequest
+- Error: `Category 'Administrative' is not supported`
 
 ### Impact
-- VM diagnostic configuration failed again.
+- VM diagnostics could not be enabled as expected
 
 ### Root Cause
-- Azure Virtual Machines do not support platform log categories at resource level.
-- Control-plane logs are emitted at subscription scope via AzureActivity.
+- Azure Virtual Machines do not emit platform logs at resource level
+- Administrative logs originate at subscription scope via AzureActivity
 
 ### Resolution
-- Updated VM diagnostic settings to enable **metrics only**.
-- Relied on AzureActivity for control-plane visibility.
+- Updated VM diagnostic settings to enable only supported metrics
+- Relied on AzureActivity for control-plane visibility
 
 ### Learning and Prevention
-- VM diagnostic settings primarily support metrics.
-- Logs and metrics have different scopes in Azure Monitor.
+- VM diagnostics ≠ control-plane logs
+- Monitoring must account for telemetry scope and source
 
 ---
 
 ## Issue 5: VM and Log Analytics appeared disconnected
 
 ### Symptoms
-- VM and Log Analytics Workspace were created successfully.
-- No control-plane logs appeared in Log Analytics initially.
+- VM and Log Analytics Workspace created successfully
+- No control-plane logs visible in Log Analytics initially
 
 ### Impact
-- Monitoring appeared incomplete.
-- Required clarification of telemetry paths.
+- Monitoring appeared incomplete
+- Required clarification of telemetry flow
 
 ### Root Cause
-- AzureActivity logs originate at the **subscription level**.
-- Subscription-level diagnostic settings were missing initially.
+- VM diagnostic settings send metrics only
+- Subscription-level diagnostic settings were missing
 
 ### Resolution
-- Added subscription-level diagnostic settings.
-- Routed AzureActivity logs to Log Analytics Workspace.
+- Added subscription-level diagnostic settings
+- Routed AzureActivity logs to Log Analytics
 
 ### Learning and Prevention
-- Azure Monitor uses multiple telemetry pipelines.
-- Subscription-level diagnostics are required for control-plane visibility.
+- Azure Monitor uses multiple telemetry pipelines
+- Subscription diagnostics are required for AzureActivity logs
 
 ---
 
-## Issue 6: AzureActivity logs not visible immediately after configuration
+## Issue 6: AzureActivity logs not visible immediately
 
 ### Symptoms
-- AzureMetrics data was visible.
-- AzureActivity table remained empty initially.
+- AzureMetrics data visible
+- AzureActivity table initially empty
 
 ### Impact
-- Temporary uncertainty about monitoring correctness.
+- Perceived misconfiguration
+- Required validation before proceeding
 
 ### Root Cause
-- Azure Monitor ingests AzureActivity logs asynchronously.
-- Ingestion delay is expected behavior.
+- AzureActivity ingestion is asynchronous
+- Log flow is delayed even with correct configuration
 
 ### Resolution
-- Waited for ingestion pipeline to stabilize.
-- AzureActivity logs appeared without configuration changes.
+- Waited for ingestion delay (5–15 minutes)
+- Revalidated logs without changing configuration
 
 ### Learning and Prevention
-- AzureActivity ingestion is not instantaneous.
-- Validation should include time-based rechecks before assuming failure.
+- Azure Monitor ingestion delays are normal
+- Patience and validation are part of production operations
 
 ---
 
-## Issue 7: Terraform alert creation failed due to missing action block
+## Issue 7: Terraform alert creation failed due to missing action blocks
 
 ### Symptoms
 - Terraform plan failed with error:
-`Insufficient action blocks`.
-- Alert resources could not be created.
+  `At least 1 "action" blocks are required`
 
 ### Impact
-- KQL-based alerts were blocked from deployment.
+- KQL-based alert rules could not be created
 
 ### Root Cause
-- `azurerm_monitor_scheduled_query_rules_alert` requires at least one `action` block.
-- Action Group was not defined initially.
+- Azure Monitor Scheduled Query Rules require at least one action group
+- Alerts cannot exist without an action target
 
 ### Resolution
-- Created an Azure Monitor Action Group.
-- Added `action` block referencing the Action Group to all alerts.
-- Terraform plan and apply succeeded.
+- Created an Azure Monitor Action Group
+- Linked alerts to the action group using `action` blocks
 
 ### Learning and Prevention
-- Azure Monitor alerts always require an action target.
-- Even test alerts must include an action group.
-- Terraform validation errors often reflect Azure API requirements.
+- Azure alerts are incomplete without actions
+- Action Groups are mandatory even for test alerts
+
+### Observation: Python automation returned empty results
+
+- Python script executed successfully and queried Log Analytics.
+- Query returned an empty DataFrame for failed operations.
+
+**Explanation:**
+- No failed Azure control-plane operations occurred within the selected time window.
+
+**Learning:**
+- Empty query results can indicate healthy systems.
+- Automation scripts should handle and report empty datasets gracefully.
+
