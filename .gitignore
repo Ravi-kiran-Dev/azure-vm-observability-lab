@@ -44,3 +44,7 @@ Thumbs.db
 # Editors
 .vscode/
 .idea/
+
+
+# Python tooling
+pip-wheel-metadata/
